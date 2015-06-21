@@ -1,5 +1,5 @@
 import Color exposing (rgb, red, blue, white, black)
-import Graphics.Collage exposing (Form, collage, rect, filled, move, moveX, text, circle, segment, traced, solid, toForm)
+import Graphics.Collage exposing (Form, collage, rect, filled, move, moveX, text, circle, segment, traced, solid, toForm, group)
 import Graphics.Element exposing (Element, color, container, middle, midLeft, midRight, topRight, topLeft, bottomRight, bottomLeft, midTop, midBottom, flow, down)
 import Graphics.Input exposing (clickable)
 import List exposing (repeat)
@@ -31,65 +31,37 @@ showGrid = [ drawBlackLine (-75, -25) (75, -25),
            |> collage 150 150
            |> toForm
                  
-type alias Board = ((Maybe Player, Maybe Player, Maybe Player),
-                    (Maybe Player, Maybe Player, Maybe Player),
-                    (Maybe Player, Maybe Player, Maybe Player))
+type alias Board = List (List (Maybe Player))
     
-clickHandler : Signal.Channel (Maybe Player)
-clickHandler = Signal.channel 
-    
-showBoard : Board -> List Form
-showBoard ((a,b,c)
-          ,(d,e,f)
-          ,(g,h,i)) =
-    let move obj pos = [showMaybePlayer obj] |> (collage 40 40) |> clickable (Signal.send clickHandler obj) |> (container 150 150 pos) |> toForm
-    in
-    [ move a topLeft, move b midTop, move c topRight
-    , move d midLeft, move e middle, move f midRight
-    , move g bottomLeft, move h midBottom, move i bottomRight ]
-    
+--clickHandler : Signal.Channel (Maybe Player)
+--clickHandler = Signal.channel
+
+showBoard : Board -> Form
+showBoard board =
+    let move pos obj = [showMaybePlayer obj] |> (collage 40 40) |> (container 150 150 pos) |> toForm
+        positions = [ topLeft,    midTop,    topRight
+                    , midLeft,    middle,    midRight
+                    , bottomLeft, midBottom, bottomRight ]
+    in board |> List.concat |> List.map2 move positions |> group
+
 initialBoard : Board
-initialBoard = ((Nothing, Nothing, Nothing),
-                (Nothing, Nothing, Nothing),
-                (Nothing, Nothing, Nothing))
+initialBoard = repeat 3 <| repeat 3 Nothing
 
 winner : Board -> Maybe Player
 winner board =
     case board of
-      (((Just x), (Just x), (Just x)),
-        _,
-        _) -> (Just x)
+      [[Just x, Just x, Just x], _, _] -> Just x
+      [_, [Just x, Just x, Just x], _] -> Just x
+      [_, _, [Just x, Just x, Just x]] -> Just x
 
-      (_,
-        ((Just x), (Just x), (Just x)),
-        _) -> (Just x)
+      [[Just x, _, _], [Just x, _, _], [Just x, _, _]] -> Just x
+      [[_, Just x, _], [_, Just x, _], [_, Just x, _]] -> Just x
+      [[_, _, Just x], [_, _, Just x], [_, _, Just x]] -> Just x
 
-      (_,
-       _,
-       ((Just x), (Just x), (Just x))) -> (Just x)
+      [[Just x, _, _], [_, Just x, _], [_, _, Just x]] -> Just x
+      [[_, _, Just x], [_, Just x, _], [Just x, _, _]] -> Just x
 
-      (((Just x), _, _),
-       ((Just x), _, _),
-       ((Just x), _, _)) -> (Just x)
-
-      ((_, (Just x), _),
-       (_, (Just x), _),
-       (_, (Just x), _)) -> (Just x)
-
-      ((_, _, (Just x)),
-       (_, _, (Just x)),
-       (_, _, (Just x))) -> (Just x)
-
-      (((Just x), _, _),
-       (_, (Just x), _),
-       (_, _, (Just x))) -> (Just x)
-
-      ((_, _, (Just x)),
-       (_, (Just x), _),
-       ((Just x), _, _)) -> (Just x)
-
-      (_, _, _) -> Nothing
-
+      _ -> Nothing
 
 showWinner : Maybe Player -> Form
 showWinner maybePlayer =
@@ -104,7 +76,7 @@ otherPlayer player =
       PlayerO -> PlayerX
 
 view action model = flow down
-                    [ showGrid :: showBoard model.board |> collage 150 150
+                    [ [ showGrid, showBoard model.board ] |> collage 150 150
                     , [ model.board |> winner |> showWinner ] |> collage 40 40
                     , [ showPlayer model.turn ] |> collage 40 40 ]
                     |> Html.fromElement
