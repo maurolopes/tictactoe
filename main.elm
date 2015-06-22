@@ -6,9 +6,19 @@ import List exposing (repeat)
 import StartApp
 import Html exposing (div)
 import Debug
+import Signal
                          
 type Player = PlayerX | PlayerO
 
+nth : List a -> Int -> Maybe a
+nth list n = list |> List.drop n |> List.head
+
+nth2 : List (List a) -> (Int, Int) -> Maybe a
+nth2 llist (x,y) =
+    case nth llist x of
+      Nothing -> Nothing
+      Just list -> nth list y
+             
 showPlayer : Player -> Form
 showPlayer player =
     case player of
@@ -32,17 +42,19 @@ showGrid = [ drawBlackLine (-75, -25) (75, -25),
            |> toForm
                  
 type alias Board = List (List (Maybe Player))
-    
---clickHandler : Signal.Channel (Maybe Player)
---clickHandler = Signal.channel
+type alias Coords = (Int, Int)
+
+clickHandler : Signal.Mailbox (Maybe Coords)
+clickHandler = Signal.mailbox Nothing
 
 showBoard : Board -> Form
 showBoard board =
-    let move pos obj = [showMaybePlayer obj] |> (collage 40 40) |> (container 150 150 pos) |> toForm
+    let move pos coord obj = [showMaybePlayer obj] |> collage 40 40 |> container 150 150 pos |> clickable (Signal.message clickHandler.address (Just coord)) |> toForm
+        coords = List.concatMap (\x -> List.map (\y-> (x,y)) [0..2]) [0..2]
         positions = [ topLeft,    midTop,    topRight
                     , midLeft,    middle,    midRight
                     , bottomLeft, midBottom, bottomRight ]
-    in board |> List.concat |> List.map2 move positions |> group
+    in board |> List.concat |> List.map3 move positions coords |> group
 
 initialBoard : Board
 initialBoard = repeat 3 <| repeat 3 Nothing
@@ -75,12 +87,30 @@ otherPlayer player =
       PlayerX -> PlayerO
       PlayerO -> PlayerX
 
+type alias Model = { board: Board, turn: Player }
+type alias Action = Coords
+
 view action model = flow down
                     [ [ showGrid, showBoard model.board ] |> collage 150 150
                     , [ model.board |> winner |> showWinner ] |> collage 40 40
                     , [ showPlayer model.turn ] |> collage 40 40 ]
-                    |> Html.fromElement
-                       
-update action model = model
+                    |> Html.fromElement    
 
+update : Action -> Model -> Model
+{-update action {board, turn} =
+    if action == turn then
+-}
+{-
+update (x,y) { board, turn } =
+    let cell = board |> x |> y
+    in
+      case (cell, turn) of
+        (Nothing, turn) -> { board = board, turn = turn } --TODO
+        _ -> { board = board, turn = turn }
+-}
+update coords { board, turn } =
+    case nth2 board coords of
+      Nothing -> { board = board, turn = turn }
+      
+                               
 main = StartApp.start { model = {board = initialBoard, turn = PlayerX}, view = view, update = update }
